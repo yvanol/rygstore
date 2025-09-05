@@ -8,11 +8,21 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2024-06-20",
 });
 
+export const config = {
+  api: {
+    bodyParser: false, // Disable body parsing for raw body
+  },
+};
+
 export async function POST(request) {
   try {
     // Get the raw body for Stripe webhook verification
     const body = await request.text();
     const sig = request.headers.get("stripe-signature");
+
+    console.log("Request headers:", request.headers);
+    console.log("Raw body:", body);
+    console.log("Signature:", sig);
 
     if (!sig) {
       console.log("Missing stripe-signature header");
@@ -31,7 +41,7 @@ export async function POST(request) {
         process.env.STRIPE_WEBHOOK_SECRET
       );
     } catch (err) {
-      console.error("Webhook signature verification failed:", err.message);
+      console.error("Webhook signature verification failed:", err);
       return NextResponse.json(
         { success: false, message: `Webhook Error: ${err.message}` },
         { status: 400 }
@@ -39,7 +49,6 @@ export async function POST(request) {
     }
 
     const handlePaymentIntent = async (paymentIntentId, isPaid) => {
-      // Retrieve the session to get metadata
       const sessionList = await stripe.checkout.sessions.list({
         payment_intent: paymentIntentId,
         limit: 1,
@@ -60,7 +69,6 @@ export async function POST(request) {
       await connectDB();
 
       if (isPaid) {
-        // Update order to mark as paid
         const updatedOrder = await Order.findByIdAndUpdate(
           orderId,
           { isPaid: true },
@@ -71,7 +79,6 @@ export async function POST(request) {
           return;
         }
 
-        // Clear user's cart
         const updatedUser = await User.findByIdAndUpdate(
           userId,
           { cartItem: {} },
@@ -81,7 +88,6 @@ export async function POST(request) {
           console.log(`User not found: ${userId}`);
         }
       } else {
-        // Delete order if payment is canceled
         const deletedOrder = await Order.findByIdAndDelete(orderId);
         if (!deletedOrder) {
           console.log(`Order not found for deletion: ${orderId}`);
@@ -89,7 +95,6 @@ export async function POST(request) {
       }
     };
 
-    // Handle specific webhook events
     switch (event.type) {
       case "payment_intent.succeeded":
         console.log(`Processing payment_intent.succeeded for payment intent: ${event.data.object.id}`);
