@@ -8,6 +8,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export async function POST(request) {
   try {
+    // Ensure database connection is established early
+    await connectDB();
+
     const body = await request.text();
     const sig = request.headers.get("stripe-signature");
 
@@ -24,10 +27,17 @@ export async function POST(request) {
 
       const { orderId, userId } = session.data[0].metadata;
 
-      await connectDB();
+      // Log orderId to verify it
+      console.log("Processing orderId:", orderId);
 
       if (isPaid) {
-        await Order.findByIdAndUpdate(orderId, { isPaid: true });
+        const updatedOrder = await Order.findByIdAndUpdate(
+          orderId,
+          { isPaid: true },
+          { new: true }
+        );
+        // Log update result to confirm success
+        console.log("Updated Order:", updatedOrder ? updatedOrder._id : "No order found");
 
         await User.findByIdAndUpdate(userId, { cartItem: {} });
       } else {
@@ -35,7 +45,8 @@ export async function POST(request) {
       }
     };
 
-    switch (event) {
+    // Fix switch statement to use event.type
+    switch (event.type) {
       case "payment_intent.succeeded": {
         await handlePaymentIntent(event.data.object.id, true);
         break;
@@ -46,17 +57,17 @@ export async function POST(request) {
         break;
       }
       default:
-        console.error(event.type);
+        console.error("Unhandled event type:", event.type);
         break;
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error(error);
+    console.error("Webhook error:", error.message);
     return NextResponse.json({ message: error.message });
   }
 }
 
 export const config = {
-  api: { bodyparser: false },
+  api: { bodyParser: false },
 };
