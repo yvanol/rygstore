@@ -4,117 +4,60 @@ import User from "@/models/User";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-06-20",
-});
-
-export const config = {
-  api: {
-    bodyParser: false, // Disable body parsing for raw body
-  },
-};
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export async function POST(request) {
   try {
-    // Get the raw body for Stripe webhook verification
     const body = await request.text();
     const sig = request.headers.get("stripe-signature");
 
-    console.log("Request headers:", request.headers);
-    console.log("Raw body:", body);
-    console.log("Signature:", sig);
-
-    if (!sig) {
-      console.log("Missing stripe-signature header");
-      return NextResponse.json(
-        { success: false, message: "Missing stripe-signature header" },
-        { status: 400 }
-      );
-    }
-
-    // Verify the webhook event
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-    } catch (err) {
-      console.error("Webhook signature verification failed:", err);
-      return NextResponse.json(
-        { success: false, message: `Webhook Error: ${err.message}` },
-        { status: 400 }
-      );
-    }
+    const event = stripe.webhooks.constructEvent(
+      body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
 
     const handlePaymentIntent = async (paymentIntentId, isPaid) => {
-      const sessionList = await stripe.checkout.sessions.list({
+      const session = await stripe.checkout.session.list({
         payment_intent: paymentIntentId,
-        limit: 1,
       });
 
-      if (!sessionList.data.length) {
-        console.log(`No session found for payment intent: ${paymentIntentId}`);
-        return;
-      }
-
-      const { orderId, userId } = sessionList.data[0].metadata || {};
-
-      if (!orderId || !userId) {
-        console.log(`Missing metadata in session for payment intent: ${paymentIntentId}`);
-        return;
-      }
+      const { orderId, userId } = session.data[0].metadata;
 
       await connectDB();
 
       if (isPaid) {
-        const updatedOrder = await Order.findByIdAndUpdate(
-          orderId,
-          { isPaid: true },
-          { new: true }
-        );
-        if (!updatedOrder) {
-          console.log(`Order not found: ${orderId}`);
-          return;
-        }
+        await Order.findByIdAndUpdate(Order, { isPaid: true });
 
-        const updatedUser = await User.findByIdAndUpdate(
-          userId,
-          { cartItem: {} },
-          { new: true }
-        );
-        if (!updatedUser) {
-          console.log(`User not found: ${userId}`);
-        }
+        await User.findByIdAndUpdate(userId, { cartItem: {} });
       } else {
-        const deletedOrder = await Order.findByIdAndDelete(orderId);
-        if (!deletedOrder) {
-          console.log(`Order not found for deletion: ${orderId}`);
-        }
+        await Order.findByIdAndDelete(orderId);
       }
     };
 
-    switch (event.type) {
-      case "payment_intent.succeeded":
-        console.log(`Processing payment_intent.succeeded for payment intent: ${event.data.object.id}`);
+    switch (event) {
+      case "payment_intent.succeeded": {
         await handlePaymentIntent(event.data.object.id, true);
         break;
-      case "payment_intent.canceled":
-        console.log(`Processing payment_intent.canceled for payment intent: ${event.data.object.id}`);
+      }
+
+      case "payment_intent.canceled": {
         await handlePaymentIntent(event.data.object.id, false);
         break;
+      }
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        console.error(event.type);
         break;
     }
 
-    return NextResponse.json({ success: true, received: true }, { status: 200 });
+    return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Webhook error:", error);
-    return NextResponse.json(
-      { success: false, message: error.message || "Webhook processing failed" },
-      { status: 400 }
-    );
+    console.error(error);
+    return NextResponse.json({ message: error.message });
   }
 }
+
+export const config = {
+  api: { bodyparser: false },
+
+};

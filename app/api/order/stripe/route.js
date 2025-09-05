@@ -4,58 +4,74 @@ import { getAuth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: "2024-06-20",
+});
 
 export async function POST(request) {
   try {
     const { userId } = getAuth(request);
+    if (!userId) {
+      console.log("No userId found in request");
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
     const { address, items } = await request.json();
-    const origin = request.headers.get("origin");
+    const origin = request.headers.get("origin") || "http://localhost:3000";
 
     if (!address || !items || items.length === 0) {
-      return NextResponse.json({ success: false, message: "Invalid data" });
+      console.log("Invalid request data:", { address, items });
+      return NextResponse.json({ success: false, message: "Invalid data" }, { status: 400 });
     }
 
     let productData = [];
+    let amount = 0;
 
-    //calculate amount using items
-    let amount = await items.reduce(async (acc, item) => {
+    // Calculate amount and collect product data
+    for (const item of items) {
       const product = await Product.findById(item.product);
+      if (!product) {
+        console.log(`Product not found: ${item.product}`);
+        return NextResponse.json(
+          { success: false, message: `Product not found: ${item.product}` },
+          { status: 404 }
+        );
+      }
       productData.push({
         name: product.name,
         price: product.offerPrice,
         quantity: item.quantity,
       });
-      return (await acc) + product.offerPrice * item.quantity;
-    }, 0);
+      amount += product.offerPrice * item.quantity;
+    }
 
-    amount += Math.floor(amount * 0.02);
+    // Add 2% tax
+    const tax = Math.floor(amount * 0.02);
+    const totalAmount = amount + tax;
 
     const order = await Order.create({
       userId,
       address,
       items,
-      amount: amount + Math.floor(amount * 0.02),
+      amount: totalAmount,
       date: Date.now(),
       paymentType: "stripe",
     });
 
-    // create line item for stripe
-    const line_items = productData.map((item) => {
-      return {
-        price_data: {
-          currency: "usd",
-          product_data: {
-            name: item.name,
-          },
-          unit_amount: item.price * 100,
+    // Create line items for Stripe
+    const line_items = productData.map((item) => ({
+      price_data: {
+        currency: "usd",
+        product_data: {
+          name: item.name,
         },
-        quantity: item.quantity,
-      };
-    });
+        unit_amount: item.price * 100,
+      },
+      quantity: item.quantity,
+    }));
 
-    // create session
-    const session = await stripe.checkout.session.create({
+    // Create Stripe checkout session
+    const session = await stripe.checkout.sessions.create({
       line_items,
       mode: "payment",
       success_url: `${origin}/order-placed`,
@@ -66,11 +82,14 @@ export async function POST(request) {
       },
     });
 
-    const url = session.url;
+    console.log("Stripe session created:", { sessionId: session.id, url: session.url });
 
-    return NextResponse.json({ success: true, url });
+    return NextResponse.json({ success: true, url: session.url });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ success: true, message:error.message });
+    console.error("Stripe API error:", error);
+    return NextResponse.json(
+      { success: false, message: error.message || "Internal server error" },
+      { status: 500 }
+    );
   }
 }
