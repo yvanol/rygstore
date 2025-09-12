@@ -8,17 +8,28 @@ import { NextResponse } from "next/server";
 export async function GET(request) {
   try {
     const { userId } = getAuth(request);
+    
+    // Check if userId exists
+    if (!userId) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    // Connect to the database
     await connectDB();
 
-    Address.length
-    Product.length
-
-    const orders = await Order.find({ userId, $or: [{paymentType: 'COD'}, {paymentType: 'Stripe', isPaid: true }]}).populate(
-      'address items.product'
-    );
+    // Fetch orders for the authenticated user with COD or paid Stripe orders
+    const orders = await Order.find({
+      userId,
+      $or: [
+        { paymentType: 'COD' },
+        { paymentType: 'Stripe', isPaid: true }
+      ]
+    }).populate('address items.product');
 
     return NextResponse.json({ success: true, orders });
   } catch (error) {
-    return NextResponse.json({ success: false, message: error.message });
+    // Log error for debugging (optional, depending on your setup)
+    console.error("Error fetching orders:", error);
+    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
