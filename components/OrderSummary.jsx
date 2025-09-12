@@ -1,6 +1,7 @@
 import { useAppContext } from "@/context/AppContext";
 import axios from "axios";
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import toast from "react-hot-toast";
 
 const OrderSummary = () => {
@@ -16,8 +17,8 @@ const OrderSummary = () => {
   } = useAppContext();
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
   const [userAddresses, setUserAddresses] = useState([]);
+  const [isPlaceOrderClick, setIsPlaceOrderClicked] = useState(false)
 
   const fetchUserAddresses = async () => {
     try {
@@ -239,12 +240,31 @@ const OrderSummary = () => {
         </div>
       </div>
 
-      <button
-        onClick={createOrderStripe}
+      {
+        !isPlaceOrderCLicked ? (
+           <button
+        onClick={() => setIsPlaceOrderClicked(true)}
         className="w-full bg-orange-600 text-white py-3 mt-5 hover:bg-orange-700"
       >
         Place Order
       </button>
+        ) : (
+          <div>
+           <button
+        onClick={createOrderStripe}
+        className="w-full bg-orange-600 text-white py-3 mt-5 hover:bg-orange-700"
+      >
+        Cash on Delivery
+      </button>
+             <button
+        onClick={createOrderStripe}
+        className="w-full bg-orange-600 text-white py-3 mt-5 hover:bg-orange-700"
+      >
+        <Image className="w-12" src={assets.stripe_logo} alt="" />
+      </button>
+          </div>
+        )
+      }
     </div>
   );
 };
