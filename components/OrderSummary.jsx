@@ -1,7 +1,7 @@
+import { assets } from "@/assets/assets";
 import { useAppContext } from "@/context/AppContext";
 import axios from "axios";
 import React, { useEffect, useState } from "react";
-import Image from "next/image";
 import toast from "react-hot-toast";
 
 const OrderSummary = () => {
@@ -18,7 +18,7 @@ const OrderSummary = () => {
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [userAddresses, setUserAddresses] = useState([]);
-  const [isPlaceOrderClick, setIsPlaceOrderClicked] = useState(false)
+  const [isPlaceOrderClicked, setIsPlaceOrderClicked] = useState(false);
 
   const fetchUserAddresses = async () => {
     try {
@@ -61,36 +61,38 @@ const OrderSummary = () => {
 
       cartItemsArray = cartItemsArray.filter((item) => item.quantity > 0);
 
-      if(cartItemsArray.length === 0) {
-        return toast.error('Cart is empty')
+      if (cartItemsArray.length === 0) {
+        return toast.error("Cart is empty");
       }
 
+      const token = await getToken();
 
-      const token = await getToken()
+      const { data } = await axios.post(
+        "/api/order/create",
+        {
+          address: selectedAddress._id,
+          items: cartItemsArray,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
-      const {data} = await axios.post('/api/order/create',{
-        address: selectedAddress._id,
-        items: cartItemsArray
-      },{
-        headers: {Authorization:`Bearer ${token}`}
-      })
-
-      if(data.success) {
-        toast.success(data.message)
-        setCartItems({})
-        router.push('/order-placed')
+      if (data.success) {
+        toast.success(data.message);
+        setCartItems({});
+        router.push("/order-placed");
       } else {
-        toast.success(data.message)
+        toast.success(data.message);
       }
-
     } catch (error) {
-      toast.error()
+      toast.error();
     }
   };
 
   const createOrderStripe = async () => {
     try {
-         if (!selectedAddress) {
+      if (!selectedAddress) {
         return toast.error("Please select an address");
       }
 
@@ -101,30 +103,33 @@ const OrderSummary = () => {
 
       cartItemsArray = cartItemsArray.filter((item) => item.quantity > 0);
 
-      if(cartItemsArray.length === 0) {
-        return toast.error('Cart is empty')
+      if (cartItemsArray.length === 0) {
+        return toast.error("Cart is empty");
       }
 
-      const token = await getToken()
+      const token = await getToken();
 
-      const {data} = await axios.post('/api/order/stripe',{
-        address: selectedAddress._id,
-        items: cartItemsArray
-      },{
-        headers: {Authorization:`Bearer ${token}`}
-      })
+      const { data } = await axios.post(
+        "/api/order/stripe",
+        {
+          address: selectedAddress._id,
+          items: cartItemsArray,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
-      if(data.success) {
-        window.location.href = data.url
+      if (data.success) {
+        window.location.href = data.url;
       } else {
-        toast.error(data.message)
+        toast.error(data.message);
       }
-
     } catch {
-        toast.error(error.message)
+      toast.error(error.message);
     }
-  }
- 
+  };
+
   useEffect(() => {
     if (user) {
       fetchUserAddresses();
@@ -240,31 +245,36 @@ const OrderSummary = () => {
         </div>
       </div>
 
-      {
-        !isPlaceOrderCLicked ? (
-           <button
-        onClick={() => setIsPlaceOrderClicked(true)}
-        className="w-full bg-orange-600 text-white py-2 mt-5 hover:bg-orange-700"
+      <button
+        onClick={createOrderStripe}
+        className="w-full bg-orange-600 text-white py-3 mt-5 hover:bg-orange-700"
       >
         Place Order
       </button>
-        ) : (
-          <div className="flex gap-2">
-           <button
-        onClick={createOrder}
-        className="w-full bg-orange-600 text-white py-2 mt-5 hover:bg-orange-700"
-      >
-        Cash on Delivery
-      </button>
-             <button
-        onClick={createOrderStripe}
-        className="w-full-flex justify-center items-center border border-indigo-500 bg-white hover:bg-gray-100 text-white py-2 mt-5"
-      >
-        <Image className="w-12" src={assets.stripe_logo} alt="" />
-      </button>
-          </div>
-        )
-      }
+
+      {!isPlaceOrderClicked ? (
+        <button
+          onClick={() => setIsPlaceOrderClicked(true)}
+          className="w-full bg-orange-600 text-white py-2 mt-5 hover:bg-orange-700"
+        >
+          Place Order
+        </button>
+      ) : (
+        <div className="flex g-2">
+          <button
+            onClick={createOrder}
+            className="w-full bg-orange-600 text-white py-2 mt-5 hover:bg-orange-700"
+          >
+            Cash on Delivery
+          </button>
+          <button
+            onClick={createOrderStripe}
+            className="w-full flex justify-center items-center border border-indigo-500 bg-white hover:bg-gray-100 py-2 mt-5 "
+          >
+            <Image className="w-12" src={assets.stripe_logo} alt="" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
