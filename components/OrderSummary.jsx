@@ -244,21 +244,21 @@ const OrderSummary = () => {
         !isPlaceOrderCLicked ? (
            <button
         onClick={() => setIsPlaceOrderClicked(true)}
-        className="w-full bg-orange-600 text-white py-3 mt-5 hover:bg-orange-700"
+        className="w-full bg-orange-600 text-white py-2 mt-5 hover:bg-orange-700"
       >
         Place Order
       </button>
         ) : (
-          <div>
+          <div className="flex gap-2">
            <button
-        onClick={createOrderStripe}
-        className="w-full bg-orange-600 text-white py-3 mt-5 hover:bg-orange-700"
+        onClick={createOrder}
+        className="w-full bg-orange-600 text-white py-2 mt-5 hover:bg-orange-700"
       >
         Cash on Delivery
       </button>
              <button
         onClick={createOrderStripe}
-        className="w-full bg-orange-600 text-white py-3 mt-5 hover:bg-orange-700"
+        className="w-full-flex justify-center items-center border border-indigo-500 bg-white hover:bg-gray-100 text-white py-2 mt-5"
       >
         <Image className="w-12" src={assets.stripe_logo} alt="" />
       </button>
