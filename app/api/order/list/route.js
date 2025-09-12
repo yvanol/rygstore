@@ -22,11 +22,7 @@ export async function GET(request) {
 
     // Fetch orders for the authenticated user with COD or paid Stripe orders
     const orders = await Order.find({
-      userId,
-      $or: [
-        { paymentType: 'COD' },
-        { paymentType: 'Stripe', isPaid: true }
-      ]
+      userId
     }).populate('address items.product');
 
     // Debugging: Log the number of orders found
